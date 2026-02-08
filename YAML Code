@@ -1,0 +1,165 @@
+type: custom:button-card
+entity: sensor.l2_solarflow_2400_ac_electric_level
+name: L2
+theme: liquid glass
+font-family: monospace
+show_icon: false
+show_state: true
+state_display: |
+  [[[
+    const v = parseFloat(entity.state) || 0;
+    return v.toFixed(0) + ' %';
+  ]]]
+styles:
+  grid:
+    - grid-template-areas: "'n s' 'batt batt' 'cells cells' 'bar bar' 'ptext ptext'"
+    - grid-template-columns: 1fr auto
+    - grid-template-rows: auto auto auto auto auto
+  card:
+    - padding: 8px
+    - border-radius: 12px
+    - background: rgba(0,0,0,0)
+  name:
+    - font-weight: 700
+    - font-size: 28px
+    - font-family: monospace
+    - align-self: center
+    - justify-self: start
+    - text-align: left
+    - color: '#ffffff'
+  state:
+    - font-weight: 700
+    - font-variant-numeric: tabular-nums
+    - font-family: monospace
+    - font-size: 28px
+    - align-self: center
+    - justify-self: end
+    - text-align: right
+    - color: '#ffffff'
+  custom_fields:
+    batt:
+      - grid-area: batt
+      - margin-top: 6px
+      - height: 120px
+      - position: relative
+      - display: flex
+      - align-items: center
+      - justify-content: center
+    cells:
+      - grid-area: cells
+      - margin-top: 4px
+      - font-size: 16px
+      - font-family: monospace
+      - text-align: center
+      - justify-self: center
+      - color: rgba(230,230,230,0.9)
+    bar:
+      - grid-area: bar
+      - margin-top: 8px
+      - height: 18px
+      - position: relative
+      - width: 100%
+    ptext:
+      - grid-area: ptext
+      - margin-top: 4px
+      - font-size: 28px
+      - font-family: monospace
+      - text-align: center
+      - justify-self: center
+      - color: var(--primary-text-color)
+custom_fields:
+  cells: |
+    [[[
+      const c1 = parseFloat(states['sensor.fo4nhn4n2001108_min_vol']?.state);
+      const c2 = parseFloat(states['sensor.fo4nhn4n2400904_min_vol']?.state);
+      const fmt = v => isNaN(v) ? '-' : v.toFixed(2) + ' V';
+      return `${fmt(c1)} / ${fmt(c2)}`;
+    ]]]
+  batt: |
+    [[[
+      const soc = Math.max(0, Math.min(100, parseFloat(entity.state) || 0));
+      const flow = parseFloat(states['sensor.l2_kombisensor_laden_entladen']?.state) || 0;
+      const isCharging    = flow < -20;
+      const isDischarging = flow >  20;
+
+      // Farbskala nach SoC
+      let color = '#ff0000';
+      if (soc > 20) color = '#ff7f00';
+      if (soc > 40) color = '#ffd600';
+      if (soc > 60) color = '#c6ff00';
+      if (soc > 80) color = '#00c853';
+
+      const segments = 5;
+      const segHeight = 100 / segments;
+      const filled = soc;
+
+      let segHtml = '';
+      for (let i = 0; i < segments; i++) {
+        const start = i * segHeight;
+        const end   = (i + 1) * segHeight;
+        const segFilled = Math.max(0, Math.min(1, (filled - start) / (end - start)));
+        const segColor =
+          segFilled <= 0 ? 'transparent' :
+          `linear-gradient(to top, ${color} ${segFilled*100}%, rgba(0,0,0,0.25) ${segFilled*100}%)`;
+        segHtml += `
+          <div style="flex:1;margin:2px 0;width:100%;border-radius:4px;background:rgba(0,0,0,0);overflow:hidden;position:relative;">
+            <div style="position:absolute;inset:0;background:${segColor};transition:background 0.25s;"></div>
+          </div>`;
+      }
+
+      let anim = '';
+      if (isCharging) anim = 'animation: charge-glow 5s ease-in-out infinite;';
+      else if (isDischarging) anim = 'animation: discharge-glow 5s ease-in-out infinite;';
+
+      return `
+        <style>
+          @keyframes charge-glow {
+            0%{box-shadow:0 0 0px rgba(0,255,0,0)}
+            40%{box-shadow:0 0 60px rgba(0,255,0,1)}
+            100%{box-shadow:0 0 0px rgba(0,255,0,0)}
+          }
+          @keyframes discharge-glow {
+            0%{box-shadow:0 0 0px rgba(255,0,0,0)}
+            40%{box-shadow:0 0 60px rgba(255,0,0,1)}
+            100%{box-shadow:0 0 0px rgba(255,0,0,0)}
+          }
+        </style>
+        <div style="position:relative;width:60px;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;">
+          <div style="width:50%;height:7px;margin-bottom:4px;border-radius:3px;background:rgba(230,230,230,0.98);"></div>
+          <div style="flex:1;width:100%;border-radius:6px;border:2px solid rgba(255,255,255,0.50);box-sizing:border-box;padding:5px 5px;display:flex;flex-direction:column-reverse;background:radial-gradient(circle at 0% 0%, rgba(255,255,255,0.22), transparent);${anim}">
+            ${segHtml}
+          </div>
+        </div>
+      `;
+    ]]]
+  bar: |
+    [[[
+      const p = parseFloat(states['sensor.l2_kombisensor_laden_entladen']?.state) || 0;
+      const absP = Math.min(Math.abs(p), 2400);
+      const rel = (absP / 2400) * 100;
+
+      let color = 'rgba(120,120,120,0.8)';
+      if (p < -20) color = '#008000';      // Laden
+      else if (p > 20) color = '#ff0000';  // Entladen
+
+      return `
+        <div style="position:relative;width:100%;height:100%;border-radius:999px;background:rgba(255,255,255,0.12);overflow:hidden;">
+          <div style="position:absolute;left:0;top:0;bottom:0;width:${rel}%;max-width:100%;background:${color};transition:width 0.25s ease-out, background 0.2s;"></div>
+        </div>
+      `;
+    ]]]
+  ptext: |
+    [[[
+      const p = parseFloat(states['sensor.l2_kombisensor_laden_entladen']?.state) || 0;
+      const absP = Math.abs(p).toFixed(0);
+      let text = '';
+      let color = 'rgba(220,220,220,0.95)';
+      if (Math.abs(p) <= 1) {
+        text = 'Standby'; color = 'rgba(190,190,190,0.95)';
+      } else {
+        text = `${absP} W`;
+        if (p < -20) color = '#00e676';
+        else if (p > 20) color = '#ff0000';
+      }
+      return `<span style="color:${color};">${text}</span>`;
+    ]]]
