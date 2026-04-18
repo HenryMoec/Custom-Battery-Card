@@ -10,3 +10,6 @@ Content:
 - shows charging/discharging power
 - shows min vol of battery
 - pulsation of battery
+
+Needs:
+- button card from HACS
